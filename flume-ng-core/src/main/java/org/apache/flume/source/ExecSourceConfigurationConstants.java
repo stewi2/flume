@@ -43,4 +43,16 @@ public class ExecSourceConfigurationConstants {
    */
   public static final String CONFIG_BATCH_SIZE = "batchSize";
   public static final int DEFAULT_BATCH_SIZE = 20;
+
+  /**
+   * Does the command produce event header information ? : default false
+   */
+  public static final String CONFIG_HAS_HEADERS = "hasHeaders";
+  public static final boolean DEFAULT_HAS_HEADERS = false;
+  
+  /**
+   * Event header delimiter character: default \001 (Ctrl-A)
+   */
+  public static final String CONFIG_HEADER_DELIMITER_CHAR = "headerDelimiterChar";
+  public static final String DEFAULT_HEADER_DELIMITER_CHAR = "\\u0001";
 }

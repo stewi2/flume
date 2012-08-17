@@ -23,12 +23,15 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.flume.Channel;
 import org.apache.flume.Context;
 import org.apache.flume.CounterGroup;
@@ -148,6 +151,8 @@ Configurable {
   private boolean restart;
   private boolean logStderr;
   private Integer bufferCount;
+  private boolean hasHeaders;
+  private char headerDelimiter;
   private ExecRunnable runner;
 
   @Override
@@ -158,7 +163,7 @@ Configurable {
     counterGroup = new CounterGroup();
 
     runner = new ExecRunnable(command, getChannelProcessor(), counterGroup,
-        restart, restartThrottle, logStderr, bufferCount);
+        restart, restartThrottle, logStderr, bufferCount, hasHeaders, headerDelimiter);
 
     // FIXME: Use a callback-like executor / future to signal us upon failure.
     runnerFuture = executor.submit(runner);
@@ -223,13 +228,21 @@ Configurable {
 
     bufferCount = context.getInteger(ExecSourceConfigurationConstants.CONFIG_BATCH_SIZE,
         ExecSourceConfigurationConstants.DEFAULT_BATCH_SIZE);
+
+    hasHeaders = context.getBoolean(ExecSourceConfigurationConstants.CONFIG_HAS_HEADERS,
+    	ExecSourceConfigurationConstants.DEFAULT_HAS_HEADERS);
+
+    headerDelimiter = StringEscapeUtils.unescapeJava(context.getString(ExecSourceConfigurationConstants.CONFIG_HEADER_DELIMITER_CHAR,
+    	ExecSourceConfigurationConstants.DEFAULT_HEADER_DELIMITER_CHAR)).charAt(0);
+    
+    logger.info("Header delimiter character code: "+(int)headerDelimiter);
   }
 
   private static class ExecRunnable implements Runnable {
 
     public ExecRunnable(String command, ChannelProcessor channelProcessor,
         CounterGroup counterGroup, boolean restart, long restartThrottle,
-        boolean logStderr, int bufferCount) {
+        boolean logStderr, int bufferCount, boolean hasHeaders, char headerSeparatorChar) {
       this.command = command;
       this.channelProcessor = channelProcessor;
       this.counterGroup = counterGroup;
@@ -237,6 +250,8 @@ Configurable {
       this.bufferCount = bufferCount;
       this.restart = restart;
       this.logStderr = logStderr;
+      this.hasHeaders = hasHeaders;
+      this.headerSeparatorChar = headerSeparatorChar;
     }
 
     private String command;
@@ -246,6 +261,8 @@ Configurable {
     private long restartThrottle;
     private int bufferCount;
     private boolean logStderr;
+    private boolean hasHeaders;
+    private char headerSeparatorChar;
 
     @Override
     public void run() {
@@ -270,7 +287,22 @@ Configurable {
           List<Event> eventList = new ArrayList<Event>();
           while ((line = reader.readLine()) != null) {
             counterGroup.incrementAndGet("exec.lines.read");
-            eventList.add(EventBuilder.withBody(line.getBytes()));
+            if(hasHeaders) {
+            	int sep = line.indexOf(headerSeparatorChar);
+            	String header = line.substring(0,sep);
+            	String body = line.substring(sep+1);
+            	String[] fields = header.split(",");
+            	Map<String,String> headers = new HashMap<String,String>();
+            	for(String field: fields) {
+            		String[] split = field.split("=");
+            		String key = split[0];
+            		String value = split[1];
+            		headers.put(key,value);
+            	}
+            	eventList.add(EventBuilder.withBody(body.getBytes(), headers));
+            } else {
+            	eventList.add(EventBuilder.withBody(line.getBytes()));
+            }
             if(eventList.size() >= bufferCount) {
               channelProcessor.processEventBatch(eventList);
               eventList.clear();
