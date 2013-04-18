@@ -894,6 +894,33 @@ Example for agent named **agent_foo**:
   agent_foo.channels = memoryChannel-1
   agent_foo.sources.legacysource-1.type = your.namespace.YourClass
   agent_foo.sources.legacysource-1.channels = memoryChannel-1
+  
+Scribe Source
+~~~~~~~~~~~~~
+
+Scribe is another type of ingest system. To adopt existing Scribe ingest system, 
+Flume should use ScribeSource based on Thrift with compatible transfering protocol.
+The deployment of Scribe please following guide from Facebook.
+Required properties are in **bold**.
+
+==============  ===========  ==============================================
+Property Name   Default      Description
+==============  ===========  ==============================================
+**type**        --           The component type name, needs to be ``org.apache.flume.source.scribe.ScribeSource``
+port            1499         Port that Scribe should be connected
+workerThreads   5			 Handing threads number in Thrift
+==============  ===========  ==============================================
+
+Example for agent named **agent_foo**:
+
+.. code-block:: properties
+
+  agent_foo.sources = scribesource-1
+  agent_foo.channels = memoryChannel-1
+  agent_foo.sources.scribesource-1.type = org.apache.flume.source.scribe.ScribeSource
+  agent_foo.sources.scribesource-1.port = 1463
+  agent_foo.sources.scribesource-1.workerThreads = 5
+  agent_foo.sources.scribesource-1.channels = memoryChannel-1
 
 Flume Sinks
 -----------
@@ -1842,6 +1869,56 @@ starts with ``org.apache.flume``):
 
   ManagementFactory.getPlatformMBeanServer().registerMBean(this, objName);
 
+JSON Reporting
+--------------
+Flume can also report metrics in a JSON format. To enable reporting in JSON format, Flume hosts
+a Web server on a configurable port. Flume reports metrics in the following JSON format:
+
+.. code-block:: java
+
+  {
+  "typeName1.componentName1" : {"metric1" : "metricValue1", "metric2" : "metricValue2"},
+  "typeName2.componentName2" : {"metric3" : "metricValue3", "metric4" : "metricValue4"}
+  }
+
+Here is an example:
+
+.. code-block:: java
+
+  {
+  "CHANNEL.fileChannel":{"EventPutSuccessCount":"468085",
+                        "Type":"CHANNEL",
+                        "StopTime":"0",
+                        "EventPutAttemptCount":"468086",
+                        "ChannelSize":"233428",
+                        "StartTime":"1344882233070",
+                        "EventTakeSuccessCount":"458200",
+                        "ChannelCapacity":"600000",
+                        "EventTakeAttemptCount":"458288"},
+  "CHANNEL.memChannel":{"EventPutSuccessCount":"22948908",
+                     "Type":"CHANNEL",
+                     "StopTime":"0",
+                     "EventPutAttemptCount":"22948908",
+                     "ChannelSize":"5",
+                     "StartTime":"1344882209413",
+                     "EventTakeSuccessCount":"22948900",
+                     "ChannelCapacity":"100",
+                     "EventTakeAttemptCount":"22948908"}
+  }
+
+=======================  =======  =====================================================================================
+Property Name            Default  Description
+=======================  =======  =====================================================================================
+**type**                 --       The component type name, has to be ``HTTP``
+port                     41414    The port to start the server on.
+=======================  =======  =====================================================================================
+
+We can start Flume with Ganglia support as follows::
+
+  $ bin/flume-ng agent --conf-file example.conf --name agent1 -Dflume.monitoring.type=HTTP -Dflume.monitoring.port=34545
+
+Metrics will then be available at **http://<hostname>:<port>/metrics** webpage.
+Custom components can report metrics as mentioned in the Ganglia section above.
 
 Custom Reporting
 ----------------
